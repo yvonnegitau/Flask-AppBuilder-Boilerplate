@@ -1,0 +1,50 @@
+version: '3'
+services:
+  db:
+    image: postgres:15
+    container_name: db
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - '5432:5432'
+    volumes:
+      - "postgres_data:/var/lib/postgresql/data"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready", "-d", "${POSTGRES_DB}", "-U", "${POSTGRES_USER}"]
+      interval: 1m30s
+      timeout: 30s
+      retries: 5
+      start_period: 30s
+
+  webapp:
+    build: .
+    container_name: flask_app
+    command: gunicorn "app:app" -b 0.0.0.0:8000 --reload
+    env_file:
+      - .env
+    ports:
+      - "8000:8000"
+    volumes:
+      - ".:/app"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      db:
+        condition: service_healthy
+  migrate:
+    build: .
+    container_name: flask_app_migrate
+    command: sh -c 'export FLASK_APP=app/__init__.py flask init'
+    env_file:
+      - .env
+    ports:
+      - "8001:8001"
+    volumes:
+      - ".:/app"
+    depends_on:
+      db:
+        condition: service_healthy
+volumes:
+  postgres_data:
